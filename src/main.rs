@@ -50,7 +50,10 @@ use tokio::sync::RwLock;
 // =============================================================================
 
 #[derive(Parser)]
-#[command(name = "sovd-security-helper", about = "Security key derivation helper for SOVD Explorer")]
+#[command(
+    name = "sovd-security-helper",
+    about = "Security key derivation helper for SOVD Explorer"
+)]
 struct Cli {
     /// Port to listen on
     #[arg(long, default_value = "9100")]
@@ -222,10 +225,7 @@ struct OidcDiscovery {
 }
 
 /// Fetch OIDC discovery document and JWKS for a provider.
-async fn discover_jwks(
-    client: &reqwest::Client,
-    issuer: &str,
-) -> Result<(String, JwkSet), String> {
+async fn discover_jwks(client: &reqwest::Client, issuer: &str) -> Result<(String, JwkSet), String> {
     let discovery_url = format!(
         "{}/.well-known/openid-configuration",
         issuer.trim_end_matches('/')
@@ -235,10 +235,20 @@ async fn discover_jwks(
         .get(&discovery_url)
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch OIDC discovery from {}: {}", discovery_url, e))?
+        .map_err(|e| {
+            format!(
+                "Failed to fetch OIDC discovery from {}: {}",
+                discovery_url, e
+            )
+        })?
         .json()
         .await
-        .map_err(|e| format!("Failed to parse OIDC discovery from {}: {}", discovery_url, e))?;
+        .map_err(|e| {
+            format!(
+                "Failed to parse OIDC discovery from {}: {}",
+                discovery_url, e
+            )
+        })?;
 
     let jwks: JwkSet = client
         .get(&discovery.jwks_uri)
@@ -258,8 +268,7 @@ impl JwksManager {
     /// Decodes the token header to extract `kid`, finds the matching key across
     /// providers, then validates signature, expiry, audience, and issuer.
     async fn validate_token(&self, raw_token: &str) -> Result<JwtClaims, String> {
-        let header = decode_header(raw_token)
-            .map_err(|e| format!("Invalid JWT header: {}", e))?;
+        let header = decode_header(raw_token).map_err(|e| format!("Invalid JWT header: {}", e))?;
 
         let kid = header
             .kid
@@ -562,7 +571,9 @@ async fn main() {
     } else {
         match config.auth.mode {
             AuthMode::Static => {
-                eprintln!("Error: static auth mode requires --token flag or SOVD_HELPER_TOKEN env var");
+                eprintln!(
+                    "Error: static auth mode requires --token flag or SOVD_HELPER_TOKEN env var"
+                );
                 std::process::exit(1);
             }
             AuthMode::Oidc => {
@@ -581,16 +592,15 @@ async fn main() {
                         provider_config.name, provider_config.issuer
                     );
 
-                    let (jwks_uri, jwks) =
-                        discover_jwks(&http_client, &provider_config.issuer)
-                            .await
-                            .unwrap_or_else(|e| {
-                                eprintln!(
-                                    "Failed to discover OIDC provider '{}': {}",
-                                    provider_config.name, e
-                                );
-                                std::process::exit(1);
-                            });
+                    let (jwks_uri, jwks) = discover_jwks(&http_client, &provider_config.issuer)
+                        .await
+                        .unwrap_or_else(|e| {
+                            eprintln!(
+                                "Failed to discover OIDC provider '{}': {}",
+                                provider_config.name, e
+                            );
+                            std::process::exit(1);
+                        });
 
                     eprintln!(
                         "[auth] Provider '{}': {} keys from {}",
